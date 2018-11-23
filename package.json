@@ -1,0 +1,8 @@
+{
+    "name": "fb-pc-sdk",
+    "version": "0.0.1",
+    "description": "Facebook PC SDK",
+    "author": "Cocos Creator",
+    "main": "main.js"
+  }
+  
