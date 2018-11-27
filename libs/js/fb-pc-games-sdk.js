@@ -20,7 +20,7 @@ class FBPCGamesSDK {
   }
 
   login() {
-    if (this.appId) {
+    if (!this.appId) {
       cc.warn('please call init first');
       return;
     }
@@ -29,11 +29,11 @@ class FBPCGamesSDK {
   }
 
   pushEvent(eventId, detail) {
-    if (this.appId) {
+    if (!this.appId) {
       cc.warn('please call init first');
       return;
     }
-    this.sdkInstance.pushEvent(eventId, detail);
+    this.sdkInstance.pushEvent(eventId);
   }
 }
 

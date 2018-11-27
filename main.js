@@ -1,6 +1,7 @@
 'use strict';
 const Path = require('fire-path');
 const Fs = require('fire-fs');
+const spawn = require('child_process').spawn;
 const {base} = Editor.require('app://editor/core/native-packer');
 
 /**
@@ -44,8 +45,60 @@ async function handleEvent(options, cb) {
         let srcSDKPath = Editor.url('packages://fb-pc-sdk/libs/facebooksdk/cpprestsdk');
         let destSDKPath = Path.join(options.dest, 'frameworks/runtime-src/proj.win32/facebooksdk/cpprestsdk');
         nativePacker.ensureFile(srcSDKPath, destSDKPath);
+
+        //解压 dll 文件到对应目录
+        let srcDllPath = Path.join(getCocosRoot(), 'simulator/win32/dll/dll.zip');
+        let destDllPath = Path.join(options.dest, 'frameworks/runtime-src/proj.win32/dlls');
+        if (Fs.existsSync(srcDllPath) && !Fs.existsSync(destDllPath)) {
+            await unzip(srcDllPath, destDllPath);
+        }
+
     } while (false);
     cb && cb(error_tips);
+}
+
+function getCocosRoot() {
+    let localProfile = Editor.Profile.load('profile://local/settings.json');
+    let data = localProfile.data;
+    if (localProfile.data['use-global-engine-setting'] !== false) {
+        data = Editor.Profile.load('profile://global/settings.json').data;
+    }
+    return data['use-default-cpp-engine'] ? Editor.builtinCocosRoot : data['cpp-engine-path'];
+}
+
+async function unzip(src, dist) {
+    return new Promise((resolve, reject) => {
+        var path = Path.dirname(dist);
+        Fs.ensureDirSync(path);
+
+        var child = spawn(Editor.url('unpack://static/tools/unzip.exe'), [
+            src,
+            '-d', dist,
+        ]);
+
+        var errText = '';
+        child.stderr.on('data', (data) => {
+            errText += data;
+        });
+        var text = '';
+        child.stdout.on('data', (data) => {
+            text += data;
+        });
+        child.on('close', (code) => {
+            if (text) {
+                console.log(text);
+            }
+            if (errText) {
+                Editor.warn(errText);
+            }
+            // code == 0 测试通过，其余的为文件有问题
+            if (code !== 0) {
+                reject(new Error('The decompression has failed'));
+            }
+            resolve();
+        });
+    });
+
 }
 
 module.exports = {
