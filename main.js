@@ -72,6 +72,7 @@ async function unzip(src, dist) {
         Fs.ensureDirSync(path);
 
         var child = spawn(Editor.url('unpack://static/tools/unzip.exe'), [
+            '-o',
             src,
             '-d', dist,
         ]);
@@ -94,6 +95,7 @@ async function unzip(src, dist) {
             // code == 0 测试通过，其余的为文件有问题
             if (code !== 0) {
                 reject(new Error('The decompression has failed'));
+                return;
             }
             resolve();
         });
