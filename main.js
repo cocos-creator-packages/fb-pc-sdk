@@ -1,6 +1,8 @@
 'use strict';
 const Path = require('fire-path');
 const Fs = require('fire-fs');
+const spawn = require('child_process').spawn;
+const {base} = Editor.require('app://editor/core/native-packer');
 
 /**
  * 拷贝 pc sdk 的相关文件到proj.win32目录
@@ -10,31 +12,95 @@ const Fs = require('fire-fs');
  */
 async function handleEvent(options, cb) {
     let config = Editor._projectProfile.data['facebook'];
+    let error_tips = null;
+    do {
+        if (!config || !config.enable || !config.pcsdk.enable) {
+            break;
+        }
 
-    if (!config || !config.enable || !config['pc-sdk'].enable) {
-        cb && cb();
-        return;
+        if (!options.actualPlatform.toLowerCase() === "win32") {
+            break;
+        }
+
+        let libPath = Editor.url('packages://fb-pc-sdk/libs/facebooksdk');
+        if (!Fs.existsSync(libPath)) {
+            error_tips = 'facebook sdk library not found';
+            break;
+        }
+        let nativePacker = new base(options);
+
+        //拷贝js文件
+        let jsLibPath = Editor.url('packages://fb-pc-sdk/libs/js');
+        let destJsPath = Path.join(options.dest, 'src');
+        Fs.copySync(jsLibPath, destJsPath);
+
+        nativePacker.addRequireToMainJs('src/fb-pc-games-sdk.js');
+
+        //拷贝facebook SDK
+        let srcFbPath = Editor.url('packages://fb-pc-sdk/libs/facebooksdk');
+        let destFbPath = Path.join(options.dest, 'frameworks/runtime-src/proj.win32/facebooksdk');
+        nativePacker.ensureFile(srcFbPath, destFbPath);
+
+        //拷贝facebook sdk的依赖文件
+        let srcSDKPath = Editor.url('packages://fb-pc-sdk/libs/facebooksdk/cpprestsdk');
+        let destSDKPath = Path.join(options.dest, 'frameworks/runtime-src/proj.win32/facebooksdk/cpprestsdk');
+        nativePacker.ensureFile(srcSDKPath, destSDKPath);
+
+        //解压 dll 文件到对应目录
+        let srcDllPath = Path.join(getCocosRoot(), 'simulator/win32/dll/dll.zip');
+        let destDllPath = Path.join(options.dest, 'frameworks/runtime-src/proj.win32/dlls');
+        if (Fs.existsSync(srcDllPath) && !Fs.existsSync(destDllPath)) {
+            await unzip(srcDllPath, destDllPath);
+        }
+
+    } while (false);
+    cb && cb(error_tips);
+}
+
+function getCocosRoot() {
+    let localProfile = Editor.Profile.load('profile://local/settings.json');
+    let data = localProfile.data;
+    if (localProfile.data['use-global-engine-setting'] !== false) {
+        data = Editor.Profile.load('profile://global/settings.json').data;
     }
+    return data['use-default-cpp-engine'] ? Editor.builtinCocosRoot : data['cpp-engine-path'];
+}
 
-    if (options.actualPlatform.toLowerCase() === "win32") {
-        cb && cb();
-        return;
-    }
+async function unzip(src, dist) {
+    return new Promise((resolve, reject) => {
+        var path = Path.dirname(dist);
+        Fs.ensureDirSync(path);
 
-    let libPath = Editor.url('packages://fb-pc-sdk/facebooksdk');
-    if (!Fs.existsSync(libPath)) {
-        cb('facebook sdk library not found');
-        return;
-    }
+        var child = spawn(Editor.url('unpack://static/tools/unzip.exe'), [
+            '-o',
+            src,
+            '-d', dist,
+        ]);
 
-    let destPath = Path.join(options.dest, 'frameworks/runtime-src/proj.win32');
-    if (!Fs.existsSync(destPath)) {
-        cb(`${destPath} not found`);
-        return;
-    }
+        var errText = '';
+        child.stderr.on('data', (data) => {
+            errText += data;
+        });
+        var text = '';
+        child.stdout.on('data', (data) => {
+            text += data;
+        });
+        child.on('close', (code) => {
+            if (text) {
+                console.log(text);
+            }
+            if (errText) {
+                Editor.warn(errText);
+            }
+            // code == 0 测试通过，其余的为文件有问题
+            if (code !== 0) {
+                reject(new Error('The decompression has failed'));
+                return;
+            }
+            resolve();
+        });
+    });
 
-    Fs.copySync(libPath, destPath);
-    cb && cb();
 }
 
 module.exports = {
