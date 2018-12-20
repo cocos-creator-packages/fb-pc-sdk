@@ -3,11 +3,11 @@ window.fb = window.fb || {};
 class FBPCGamesSDK {
   constructor() {
     this.appId = null;
-    if (!jsb || !jsb.FacebookPCGamesSDK) {
+    if (!jsb || !jsb.FacebookPCGameSDK) {
       cc.warn('FacebookPCGamesSDK is not defined');
       return;
     }
-    this.sdkInstance = new jsb.FacebookPCGamesSDK();
+    this.sdkInstance = jsb.FacebookPCGameSDK.getInstance();
   }
 
   init(appId) {
